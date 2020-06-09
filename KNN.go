@@ -1,16 +1,22 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"log"
 	"math"
+	"os"
+	"strconv"
+	"strings"
 )
 
 type data struct {
-	id     int
-	width  float64
-	size   float64
-	length float64
-	name   string
+	id          int
+	sepalLength float64
+	sepalWidth  float64
+	petalLength float64
+	petalWidth  float64
+	class       string
 }
 
 type distances struct {
@@ -18,20 +24,25 @@ type distances struct {
 	distance float64
 }
 
-func calculateDistance(predict data, train data) float64 {
-	result1 := math.Pow((predict.width - train.width), 2)
-	result2 := math.Pow((predict.size - train.size), 2)
-	result3 := math.Pow((predict.length - train.length), 2)
-	result := math.Sqrt(result1 + result2 + result3)
-	return result
+func calculateDistance(predict data, train data, distanceBuffer chan distances) {
+	result1 := math.Pow((predict.sepalLength - train.sepalLength), 2)
+	result2 := math.Pow((predict.sepalWidth - train.sepalWidth), 2)
+	result3 := math.Pow((predict.petalLength - train.petalLength), 2)
+	result4 := math.Pow((predict.petalWidth - train.petalWidth), 2)
+	result := math.Sqrt(result1 + result2 + result3 + +result4)
+
+	distStruct := distances{train.id, result}
+	distanceBuffer <- distStruct
 }
 
 func getAllDistances(predict data, array []data) []distances {
 	distArray := make([]distances, 0, 20)
+	distanceBuffer := make(chan distances, 8)
 	for i := 0; i < len(array); i++ {
-		dist := calculateDistance(predict, array[i])
-		distStruc := distances{array[i].id, dist}
-		distArray = append(distArray, distStruc)
+		go calculateDistance(predict, array[i], distanceBuffer)
+	}
+	for i := 0; i < len(array); i++ {
+		distArray = append(distArray, <-distanceBuffer)
 	}
 	return distArray
 }
@@ -66,22 +77,34 @@ func predict(predict data, array []data) string {
 	return "red"
 }
 
+func load(dataBuffer chan data, r *csv.Reader, i int) {
+
+	record, err := r.Read()
+	if err != nil {
+		log.Fatal(err)
+	}
+	noCommasRow := strings.Split(record[0], ",")
+	sepalLength, _ := strconv.ParseFloat(noCommasRow[0], 8)
+	sepalWidth, _ := strconv.ParseFloat(noCommasRow[1], 8)
+	petalLength, _ := strconv.ParseFloat(noCommasRow[2], 8)
+	petalWidth, _ := strconv.ParseFloat(noCommasRow[3], 8)
+	data := data{i, sepalLength, sepalWidth, petalLength, petalWidth, noCommasRow[4]}
+	dataBuffer <- data
+}
+
 func main() {
-	array := make([]data, 0, 20)
-	data1 := data{0, 100, 105, 100, "red"}
-	data2 := data{1, 105, 101, 105, "red"}
-	data3 := data{2, 102, 103, 104, "red"}
-	data4 := data{3, 90, 91, 92, "red"}
-	data5 := data{4, 79, 60, 80, "red"}
-
-	data6 := data{5, 0, 0, 0, "blue"}
-	data7 := data{6, 10, 16, 11, "blue"}
-	data8 := data{8, 6, 13, 32, "blue"}
-
-	wantPredict := data{3, 100, 100, 100, "None"}
-
-	array = append(array, data1, data2, data3, data4, data5, data6, data7, data8)
-
-	typeOf := predict(wantPredict, array)
-	println(typeOf)
+	array := make([]data, 0, 2000)
+	csvfile, err := os.Open("dataSetIris.csv")
+	dataBuffer := make(chan data, 150)
+	if err != nil {
+		log.Fatalln("No se pudo abrir el archivo", err)
+	}
+	r := csv.NewReader(csvfile)
+	for i := 0; i < 150; i++ {
+		go load(dataBuffer, r, i)
+	}
+	for i := 0; i < 150; i++ {
+		array = append(array, <-dataBuffer)
+	}
+	fmt.Println("yeeer")
 }
