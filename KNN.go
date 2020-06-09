@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"os"
@@ -11,12 +12,17 @@ import (
 )
 
 type data struct {
-	id          int
-	sepalLength float64
-	sepalWidth  float64
-	petalLength float64
-	petalWidth  float64
-	class       string
+	id                 int
+	fixedAcidity       float64
+	volatileAcidity    float64
+	citricAcid         float64
+	residualSugar      float64
+	chlorides          float64
+	totalSulfurDioxide float64
+	density            float64
+	ph                 float64
+	alcohol            float64
+	quality            float64
 }
 
 type distances struct {
@@ -25,11 +31,16 @@ type distances struct {
 }
 
 func calculateDistance(predict data, train data, distanceBuffer chan distances) {
-	result1 := math.Pow((predict.sepalLength - train.sepalLength), 2)
-	result2 := math.Pow((predict.sepalWidth - train.sepalWidth), 2)
-	result3 := math.Pow((predict.petalLength - train.petalLength), 2)
-	result4 := math.Pow((predict.petalWidth - train.petalWidth), 2)
-	result := math.Sqrt(result1 + result2 + result3 + +result4)
+	result1 := math.Pow((predict.fixedAcidity - train.fixedAcidity), 2)
+	result2 := math.Pow((predict.volatileAcidity - train.volatileAcidity), 2)
+	result3 := math.Pow((predict.citricAcid - train.citricAcid), 2)
+	result4 := math.Pow((predict.residualSugar - train.residualSugar), 2)
+	result5 := math.Pow((predict.chlorides - train.chlorides), 2)
+	result6 := math.Pow((predict.totalSulfurDioxide - train.totalSulfurDioxide), 2)
+	result7 := math.Pow((predict.density - train.density), 2)
+	result8 := math.Pow((predict.ph - train.ph), 2)
+	result9 := math.Pow((predict.alcohol - train.alcohol), 2)
+	result := math.Sqrt(result1 + result2 + result3 + +result4 + result5 + result6 + result7 + result8 + result9)
 
 	distStruct := distances{train.id, result}
 	distanceBuffer <- distStruct
@@ -77,34 +88,42 @@ func predict(predict data, array []data) string {
 	return "red"
 }
 
-func load(dataBuffer chan data, r *csv.Reader, i int) {
-
-	record, err := r.Read()
-	if err != nil {
-		log.Fatal(err)
-	}
-	noCommasRow := strings.Split(record[0], ",")
-	sepalLength, _ := strconv.ParseFloat(noCommasRow[0], 8)
-	sepalWidth, _ := strconv.ParseFloat(noCommasRow[1], 8)
-	petalLength, _ := strconv.ParseFloat(noCommasRow[2], 8)
-	petalWidth, _ := strconv.ParseFloat(noCommasRow[3], 8)
-	data := data{i, sepalLength, sepalWidth, petalLength, petalWidth, noCommasRow[4]}
+func load(i int, noCommasRow []string, dataBuffer chan data) {
+	fixedAcidity, _ := strconv.ParseFloat(noCommasRow[0], 8)
+	volatileAcidity, _ := strconv.ParseFloat(noCommasRow[1], 8)
+	citricAcid, _ := strconv.ParseFloat(noCommasRow[2], 8)
+	residualSugar, _ := strconv.ParseFloat(noCommasRow[3], 8)
+	chlorides, _ := strconv.ParseFloat(noCommasRow[4], 8)
+	totalSulfurDioxide, _ := strconv.ParseFloat(noCommasRow[6], 8)
+	density, _ := strconv.ParseFloat(noCommasRow[7], 8)
+	ph, _ := strconv.ParseFloat(noCommasRow[8], 8)
+	alcohol, _ := strconv.ParseFloat(noCommasRow[10], 8)
+	quality, _ := strconv.ParseFloat(noCommasRow[11], 8)
+	data := data{i, fixedAcidity, volatileAcidity, citricAcid, residualSugar, chlorides, totalSulfurDioxide, density, ph, alcohol, quality}
+	fmt.Println(i)
 	dataBuffer <- data
 }
 
 func main() {
+	dataBuffer := make(chan data, 1600)
 	array := make([]data, 0, 2000)
-	csvfile, err := os.Open("dataSetIris.csv")
-	dataBuffer := make(chan data, 150)
+	csvfile, err := os.Open("wine.csv")
 	if err != nil {
 		log.Fatalln("No se pudo abrir el archivo", err)
 	}
 	r := csv.NewReader(csvfile)
-	for i := 0; i < 150; i++ {
-		go load(dataBuffer, r, i)
+	for i := 0; i < 1600; i++ {
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		noCommasRow := strings.Split(record[0], ";")
+		go load(i, noCommasRow, dataBuffer)
 	}
-	for i := 0; i < 150; i++ {
+	for i := 0; i < 1600; i++ {
 		array = append(array, <-dataBuffer)
 	}
-	fmt.Println("yeeer")
 }
