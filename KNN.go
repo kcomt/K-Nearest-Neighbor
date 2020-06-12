@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 )
 
 type data struct {
@@ -166,7 +167,7 @@ func homeLink(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, s)
 }
 
-func createEvent(w http.ResponseWriter, r *http.Request) {
+func predictWineQuality(w http.ResponseWriter, r *http.Request) {
 	var predictPlease dataJson
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -174,7 +175,6 @@ func createEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	json.Unmarshal(reqBody, &predictPlease)
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(predictPlease)
 
 	fixedAcidity, _ := strconv.ParseFloat(predictPlease.FixedAcidity, 8)
 	volatileAcidity, _ := strconv.ParseFloat(predictPlease.VolatileAcidity, 8)
@@ -189,13 +189,22 @@ func createEvent(w http.ResponseWriter, r *http.Request) {
 
 	data := data{2000, fixedAcidity, volatileAcidity, citricAcid, residualSugar, chlorides, totalSulfurDioxide, density, ph, alcohol, quality}
 	qualityPrediction := predict(data, 3)
-	fmt.Println(qualityPrediction)
+	s := strconv.Itoa(qualityPrediction)
+	predictPlease.Quality = s
+	json.NewEncoder(w).Encode(predictPlease)
 }
 
 func main() {
 	train()
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", homeLink)
-	router.HandleFunc("/data", createEvent).Methods("POST")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	router.HandleFunc("/data", predictWineQuality).Methods("POST")
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowCredentials: true,
+	})
+
+	handler := c.Handler(router)
+
+	log.Fatal(http.ListenAndServe(":8080", handler))
 }
