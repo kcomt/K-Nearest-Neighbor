@@ -43,6 +43,7 @@ type dataJson struct {
 	Ph                 string `json:"ph"`
 	Alcohol            string `json:"alcohol"`
 	Quality            string `json:"quality"`
+	K                  string `json:"k"`
 }
 
 type distances struct {
@@ -52,6 +53,7 @@ type distances struct {
 }
 
 var arrayOfData = make([]data, 0, 2000)
+var jsonArray = make([]dataJson, 0, 2000)
 
 func calculateDistance(predict data, train data, distanceBuffer chan distances) {
 	result1 := math.Pow((predict.fixedAcidity - train.fixedAcidity), 2)
@@ -186,12 +188,35 @@ func predictWineQuality(w http.ResponseWriter, r *http.Request) {
 	ph, _ := strconv.ParseFloat(predictPlease.Ph, 8)
 	alcohol, _ := strconv.ParseFloat(predictPlease.Alcohol, 8)
 	quality, _ := strconv.Atoi(predictPlease.Quality)
+	k, _ := strconv.Atoi(predictPlease.K)
 
 	data := data{2000, fixedAcidity, volatileAcidity, citricAcid, residualSugar, chlorides, totalSulfurDioxide, density, ph, alcohol, quality}
-	qualityPrediction := predict(data, 3)
+	qualityPrediction := predict(data, k)
 	s := strconv.Itoa(qualityPrediction)
 	predictPlease.Quality = s
 	json.NewEncoder(w).Encode(predictPlease)
+}
+
+func getDataSet(w http.ResponseWriter, r *http.Request) {
+	for i := 0; i < len(arrayOfData); i++ {
+		var aux = dataJson{
+			Id:                 "1200",
+			FixedAcidity:       strconv.FormatFloat(arrayOfData[i].fixedAcidity, 'f', 4, 64),
+			VolatileAcidity:    strconv.FormatFloat(arrayOfData[i].volatileAcidity, 'f', 4, 64),
+			CitricAcid:         strconv.FormatFloat(arrayOfData[i].citricAcid, 'f', 4, 64),
+			ResidualSugar:      strconv.FormatFloat(arrayOfData[i].residualSugar, 'f', 4, 64),
+			Chlorides:          strconv.FormatFloat(arrayOfData[i].chlorides, 'f', 4, 64),
+			TotalSulfurDioxide: strconv.FormatFloat(arrayOfData[i].totalSulfurDioxide, 'f', 4, 64),
+			Density:            strconv.FormatFloat(arrayOfData[i].density, 'f', 4, 64),
+			Ph:                 strconv.FormatFloat(arrayOfData[i].ph, 'f', 4, 64),
+			Alcohol:            strconv.FormatFloat(arrayOfData[i].alcohol, 'f', 4, 64),
+			Quality:            strconv.Itoa(arrayOfData[i].quality),
+			K:                  "3",
+		}
+		jsonArray = append(jsonArray, aux)
+	}
+
+	json.NewEncoder(w).Encode(jsonArray)
 }
 
 func main() {
@@ -199,6 +224,7 @@ func main() {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", homeLink)
 	router.HandleFunc("/data", predictWineQuality).Methods("POST")
+	router.HandleFunc("/dataset", getDataSet).Methods("GET")
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000"},
 		AllowCredentials: true,
